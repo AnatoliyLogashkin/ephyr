@@ -16,7 +16,7 @@ from ephyr import settings
 from ephyr.core.ephyr_session import ChannelSetup, EventVocabularyEntry, PeriodVocabularyEntry, ChannelGroup
 from ephyr.core.add_ons.base import BaseAddOn, ViewEntitiesZIndexEnum
 from ephyr.gui.dialogs.full_view_selected_area_dialog import FullViewSelectedAreaDialog
-from ephyr.gui._utils import milliseconds_to_readable
+from ephyr.gui._utils import format_amplitude, milliseconds_to_readable
 from ephyr.gui.qt_ephyr_session_manager_wrapper import QtEphyrSessionManagerWrapper
 from ephyr.logger import ephyr_logger
 
@@ -31,7 +31,6 @@ class TopNavigatorWidget(QWidget):
         super().__init__(parent)
         self._BG_COLOR = QColor(240, 240, 240)  # Same as SignalWidget
         self._TEXT_COLOR = QColor(0, 0, 255)
-        self._TEXT_BAD_COLOR = QColor(255, 0, 0)
         self._ARROW_COLOR = QColor(100, 100, 100)
         self._ARROW_HOVER_COLOR = QColor(0, 0, 200)
         self._left_margin = left_margin
@@ -105,13 +104,9 @@ class TopNavigatorWidget(QWidget):
             idx_in_sweep = same_name_events.index(event) + 1
         except ValueError:
             idx_in_sweep = 1
-        if getattr(event, "is_bad", False):
-            return f"{base_name} ({idx_in_sweep}, bad)"
         return f"{base_name} ({idx_in_sweep})"
 
     def _event_color(self, event) -> QColor:
-        if getattr(event, "is_bad", False):
-            return QColor(255, 0, 0)
         entry = self._events_vocabulary.get(event.event_name_id)
         color_str = entry.color if entry else "#0066FF"
         color = QColor(color_str)
@@ -431,7 +426,7 @@ class SignalWidget(QWidget):
         self._overlay_pixmap_sig: Optional[Tuple] = None
         self._visible_channel_indexes = []
         self._channel_names = []
-        self._voltage_scale = 0.0
+        self._amplitude_scale = 0.0
         self._channel_height = 0
         self._x_coords_cache: Dict[Tuple[int, int], np.ndarray] = {}
         self._lines_cache: Dict[Tuple[int, int], List[QLineF]] = {}
@@ -449,6 +444,7 @@ class SignalWidget(QWidget):
         self._current_sweep_idx: int = 0
         self._traces_are_visible = True
         self._channel_names_are_visible = True
+        self._channel_infos_are_visible = True
         self._events_are_visible = True
         self._periods_are_visible = True
         self._viewable_add_ons: List[BaseAddOn] = []
@@ -458,6 +454,8 @@ class SignalWidget(QWidget):
         self._channel_names: List[str] = []
         self._group_layouts: List[ChannelGroup] = []
         self._channels_setup: Dict[int, ChannelSetup] = {}
+        # Display label of each channel's header unit ("µV", "pA", raw label for unknown units)
+        self._channel_units: Dict[int, str] = {}
         self._auxiliary_group_rects: List[Tuple[int, QRect]] = []
         self._non_aux_group_rects: List[Tuple[int, QRect]] = []
         self._channel_group_rects: Dict[int, QRect] = {}
@@ -488,12 +486,13 @@ class SignalWidget(QWidget):
             processed_data,
             visible_channel_indexes,
             channel_names,
-            voltage_scale,
+            amplitude_scale,
             *,
             overlay_processed_data: Optional[Dict[int, Dict[int, np.ndarray]]] = None,
             overlay_data_version: int = 0,
             group_layouts: Optional[List[ChannelGroup]] = None,
             channels_setup: Optional[Dict[int, ChannelSetup]] = None,
+            channel_units: Optional[Dict[int, str]] = None,
             start_point: int,
             duration_ms: float,
             start_time_ms: float,
@@ -507,6 +506,7 @@ class SignalWidget(QWidget):
             periods_are_visible: bool = True,
             traces_are_visible: bool = True,
             channel_names_are_visible: bool = True,
+            channel_infos_are_visible: bool = True,
             viewable_add_ons: Optional[List[BaseAddOn]] = None,
             add_ons_data_dir: Optional[Path] = None,
     ):
@@ -515,7 +515,7 @@ class SignalWidget(QWidget):
         self._overlay_processed_data = dict(overlay_processed_data or {})
         self._overlay_data_version = int(overlay_data_version)
         self._visible_channel_indexes = visible_channel_indexes
-        self._voltage_scale = voltage_scale
+        self._amplitude_scale = amplitude_scale
         self._axis_start_point = max(0, start_point)
         self._axis_duration_ms = max(0.0, duration_ms)
         self._sample_rate = sample_rate if sample_rate > 0 else 1.0
@@ -530,11 +530,13 @@ class SignalWidget(QWidget):
         self._periods_are_visible = periods_are_visible
         self._traces_are_visible = traces_are_visible
         self._channel_names_are_visible = channel_names_are_visible
+        self._channel_infos_are_visible = channel_infos_are_visible
         self._viewable_add_ons = list(viewable_add_ons or [])
         self._add_ons_data_dir = add_ons_data_dir
         self._channel_names = channel_names or []
         self._group_layouts = list(group_layouts or [])
         self._channels_setup = dict(channels_setup or {})
+        self._channel_units = dict(channel_units or {})
         self._channel_cut_traces = {
             ch: bool(group.cut_traces)
             for group in self._group_layouts
@@ -585,7 +587,7 @@ class SignalWidget(QWidget):
                     painter,
                     channel_data,
                     cell_rect,
-                    voltage_scale,
+                    amplitude_scale,
                     channel_idx,
                     cur_draw_idx,
                 )
@@ -601,7 +603,7 @@ class SignalWidget(QWidget):
         if self._events_are_visible:
             self._draw_events(painter)
 
-        if self._channel_names_are_visible:
+        if self._channel_names_are_visible or self._channel_infos_are_visible:
             self._draw_channel_names(painter)
         self._draw_cell_borders(painter)
         painter.end()
@@ -786,9 +788,25 @@ class SignalWidget(QWidget):
             base = str(channel_idx)
         return base[:10]
 
+    def _channel_display_info(self, channel_idx: int) -> str:
+        setup = self._channels_setup.get(channel_idx)
+        if setup is None:
+            return ""
+        return str(getattr(setup, "info", "") or "").strip()
+
+    def _channel_label(self, channel_idx: int) -> str:
+        name = self._channel_display_name(channel_idx) if self._channel_names_are_visible else ""
+        info = self._channel_display_info(channel_idx) if self._channel_infos_are_visible else ""
+        if name and info:
+            return f"{name} | {info}"
+        return name or info
+
     def _draw_channel_names(self, painter: QPainter):
         for channel_idx, cell_rect, enabled, count in self._cell_rects:
             if cell_rect.height() < 8:
+                continue
+            label = self._channel_label(channel_idx)
+            if not label:
                 continue
             font, fm = self._font_for_count(count)
             painter.setFont(font)
@@ -802,7 +820,7 @@ class SignalWidget(QWidget):
             painter.drawText(
                 text_rect,
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
-                self._channel_display_name(channel_idx),
+                label,
             )
 
     def _draw_group_titles(self, painter: QPainter):
@@ -840,7 +858,7 @@ class SignalWidget(QWidget):
                         add_on_data_dir=add_on_data_dir,
 
                         processed_data=self._processed_data,
-                        voltage_scale=self._voltage_scale,
+                        amplitude_scale=self._amplitude_scale,
                         start_point=self._axis_start_point,
                         duration_ms=self._axis_duration_ms,
                         start_time_ms=self._start_time_ms,
@@ -855,6 +873,7 @@ class SignalWidget(QWidget):
                         visible_periods=self._visible_periods,
                         channel_groups=self._group_layouts,
                         channels_setup=self._channels_setup,
+                        channel_units=self._channel_units,
 
                         painter=painter,
                         signal_widget=self,
@@ -939,7 +958,12 @@ class SignalWidget(QWidget):
 
         for event in self._visible_events:
             rel = (event.time_ms - self._start_time_ms) / self._axis_duration_ms
-            painter.setPen(QPen(self.top_level_event_color(event), 1.5))
+            line_style = (
+                Qt.PenStyle.DashLine
+                if getattr(event, "is_bad", False)
+                else Qt.PenStyle.SolidLine
+            )
+            painter.setPen(QPen(self.top_level_event_color(event), 1.5, line_style))
             for rect in self._marker_target_rects():
                 x_int = int(rect.left() + rel * rect.width())
                 painter.drawLine(x_int, rect.top(), x_int, rect.bottom())
@@ -969,8 +993,6 @@ class SignalWidget(QWidget):
                     painter.drawLine(x_int, rect.top(), x_int, rect.bottom())
 
     def top_level_event_color(self, event) -> QColor:
-        if getattr(event, "is_bad", False):
-            return QColor(255, 0, 0)
         entry = self._events_vocabulary.get(event.event_name_id)
         color = QColor(entry.color if entry else "#0066FF")
         if color.isValid():
@@ -1121,8 +1143,8 @@ class SignalWidget(QWidget):
         left = group_rect.left()
         x_coords = self._get_cached_x_coords(group_rect.width(), n_points)
         safe_scale = scale if scale > 0 else 1.0
-        pixel_per_uv = group_rect.height() / safe_scale
-        y_offsets = (channel_data + y_offset) * pixel_per_uv
+        pixel_per_unit = group_rect.height() / safe_scale
+        y_offsets = (channel_data + y_offset) * pixel_per_unit
         y_coords = center_y - y_offsets
 
         line_buffer = self._get_line_buffer((buffer_namespace, channel_idx), n_points - 1)
@@ -1144,7 +1166,7 @@ class SignalWidget(QWidget):
         painter.drawLine(channel_rect.left(), zero_y, channel_rect.right(), zero_y)
 
     def _draw_trace(self, painter: QPainter, channel_data: np.ndarray, channel_rect: QRect,
-                    voltage_scale, channel_idx: int, cur_draw_idx: int,
+                    amplitude_scale, channel_idx: int, cur_draw_idx: int,
                     color_override: Optional[QColor] = None, pen_width: float = 1.5,
                     buffer_namespace: int = 0):
         if channel_data is None or len(channel_data) < 2:
@@ -1163,11 +1185,11 @@ class SignalWidget(QWidget):
         x_coords = self._get_cached_x_coords(channel_rect.width(), n_points)
 
         scale_factor = self.get_channel_scale(channel_idx)
-        # Per-channel scale defines full µV amplitude in the channel height.
-        full_uv_scale = max(scale_factor, 1e-12)
-        pixel_per_uv = channel_rect.height() / full_uv_scale
+        # Per-channel scale is the full amplitude across the channel height, in the channel unit.
+        full_scale = max(scale_factor, 1e-12)
+        pixel_per_unit = channel_rect.height() / full_scale
         channel_mid_y = channel_rect.top() + channel_rect.height() / 2.0
-        y_offsets = (channel_data + y_offset) * pixel_per_uv
+        y_offsets = (channel_data + y_offset) * pixel_per_unit
         y_coords = channel_mid_y - y_offsets
         if self._channel_cut_traces.get(channel_idx, False):
             clip_rect = channel_rect
@@ -1235,26 +1257,25 @@ class SignalWidget(QWidget):
                 return True
         return False
 
-    def get_scale_for_non_aux_at(self, pos: QPoint) -> Optional[float]:
-        """Return group scale for the non-aux group under the point, if available."""
+    def get_measure_channel_at(self, pos: QPoint) -> Optional[int]:
+        """Channel whose scale/unit the measure bar uses: the cell under the point,
+        else the first visible channel of the non-aux group under the point."""
+        for channel_idx, cell_rect, enabled, _count in self._cell_rects:
+            if enabled and cell_rect.contains(pos):
+                return channel_idx
         for group_idx, rect in self._non_aux_group_rects:
             if not rect.contains(pos):
                 continue
             channels = self._group_layouts[group_idx].visible_channels()
-            if not channels:
-                return None
-            return self.get_channel_scale(channels[0])
+            return channels[0] if channels else None
         return None
 
-    def _value_to_pixel_voltage(self, value, voltage_scale, channel_idx: Optional[int] = None):
-        """Convert µV value to normalized channel-height pixels (0..1 height basis)."""
-        if channel_idx is not None:
-            scale_factor = self.get_channel_scale(channel_idx)
-        else:
-            scale_factor = max(voltage_scale, 1.0)
+    def get_channel_unit(self, channel_idx: int) -> str:
+        return self._channel_units.get(channel_idx, "")
 
-        full_uv_scale = max(scale_factor, 1e-12)
-        return value / full_uv_scale
+    @property
+    def channel_units(self) -> Dict[int, str]:
+        return dict(self._channel_units)
 
     def _get_cached_x_coords(self, signal_width: int, n_points: int) -> np.ndarray:
         """Cache evenly-spaced X coordinates keyed by (width, data length).
@@ -1332,7 +1353,7 @@ class SignalWidget(QWidget):
     def measure_rect_at(self, pos: QPoint) -> Optional[QRect]:
         """Cell rect (or group rect) under a point, used to scale the measure bar.
 
-        The measure bar's time/voltage span must reflect the cell/group where the
+        The measure bar's time/amplitude span must reflect the cell/group where the
         cursor is, since each cell maps the full time window across its own width.
         """
         for _channel_idx, cell_rect, _enabled, _count in self._cell_rects:
@@ -1349,7 +1370,7 @@ class SignalWidget(QWidget):
 
 class OverlayModeEnum(Enum):
     NONE = 0
-    TIME_VOLTAGE_BAR = 1
+    TIME_AMPLITUDE_BAR = 1
     EVENT_ADD = 2
     EVENT_BAD_SET = 3
     EVENT_BAD_UNSET = 4
@@ -1364,8 +1385,38 @@ class MeasureBarStateEnum(Enum):
     FROZEN = 2
 
 
+# Measure-bar durations are shown as an integer from MEASURE_BAR_TIME_VALUES
+# in ms, s, m, or h. 1 m = 60 s, 1 h = 60 m.
+_MEASURE_BAR_TIME_UNITS = (
+    (1, "ms"),
+    (1_000, "s"),
+    (60_000, "m"),
+    (3_600_000, "h"),
+)
+
+
+def snap_measure_bar_time(time_ms: float) -> Tuple[float, str]:
+    """Snap a duration to the nearest measure-bar step.
+
+    Steps are MEASURE_BAR_TIME_VALUES in each unit (ms/s/m/h). On a tie the
+    larger step wins: 750 ms -> 1 s, 749 ms -> 500 ms.
+    """
+    best_ms = float(settings.MEASURE_BAR_TIME_VALUES[0])
+    best_label = f"{settings.MEASURE_BAR_TIME_VALUES[0]} ms"
+    best_dist = abs(best_ms - time_ms)
+    for unit_ms, unit_name in _MEASURE_BAR_TIME_UNITS:
+        for value in settings.MEASURE_BAR_TIME_VALUES:
+            candidate_ms = float(value * unit_ms)
+            dist = abs(candidate_ms - time_ms)
+            if dist < best_dist or (dist == best_dist and candidate_ms > best_ms):
+                best_ms = candidate_ms
+                best_dist = dist
+                best_label = f"{value} {unit_name}"
+    return best_ms, best_label
+
+
 class OverlayWidget(QWidget):
-    """Transparent overlay that draws time/voltage scale bars at the cursor."""
+    """Transparent overlay that draws time/amplitude scale bars at the cursor."""
 
     def __init__(self, left_margin, right_margin, bottom_margin, bar_width, parent=None):
         super().__init__(parent)
@@ -1387,6 +1438,7 @@ class OverlayWidget(QWidget):
         self._selection_start_pos: Optional[Tuple[int, float]] = None
         self._selection_start_pixel_pos: Optional[QPoint] = None
         self._scale_value = 1.0
+        self._unit_label = ""
         self._font = QFont()
         self._font.setPointSize(16)
         self._font_metrics = QFontMetrics(self._font)
@@ -1397,13 +1449,15 @@ class OverlayWidget(QWidget):
                      selection_start_time_ms: Optional[float],
                      selection_start_pos: Optional[Tuple[int, float]],
                      selection_start_pixel_pos: Optional[QPoint],
-                     time_axis_width: int = 0):
+                     time_axis_width: int = 0,
+                     unit_label: str = ""):
         self._cursor_pos = cursor_pos
         self._overlay_mode = overlay_mode
         self._channel_height = max(0, channel_height)
         self._duration_ms = max(0.0, duration_ms)
         self._time_axis_width = max(0, int(time_axis_width))
         self._scale_value = scale_value if scale_value > 0 else 1.0
+        self._unit_label = unit_label or ""
         self._start_time_ms = start_time_ms
         self._current_sweep_idx = int(current_sweep_idx)
         self._selection_start_time_ms = selection_start_time_ms
@@ -1436,10 +1490,10 @@ class OverlayWidget(QWidget):
             if self._overlay_mode == OverlayModeEnum.FULL_VIEW_SELECT and self._selection_start_pixel_pos is not None:
                 self._draw_rectangle_selection_area(painter)
 
-        elif self._overlay_mode == OverlayModeEnum.TIME_VOLTAGE_BAR:
+        elif self._overlay_mode == OverlayModeEnum.TIME_AMPLITUDE_BAR:
             painter.setPen(QPen(QColor(255, 0, 0)))
             painter.setFont(self._font)
-            self._draw_voltage_scale_bar(painter)
+            self._draw_amplitude_scale_bar(painter)
             self._draw_time_scale_bar(painter)
 
     def _signal_width(self) -> int:
@@ -1466,8 +1520,8 @@ class OverlayWidget(QWidget):
         painter.setFont(self._font)
         mode_labels = {
             OverlayModeEnum.EVENT_ADD: "Add event",
-            OverlayModeEnum.EVENT_BAD_SET: "Set bad event",
-            OverlayModeEnum.EVENT_BAD_UNSET: "Unset bad event",
+            OverlayModeEnum.EVENT_BAD_SET: "Mark as invalid",
+            OverlayModeEnum.EVENT_BAD_UNSET: "Remove invalid mark",
             OverlayModeEnum.EVENT_REMOVE: "Remove",
             OverlayModeEnum.PERIOD_ADD: "Add period",
             OverlayModeEnum.FULL_VIEW_SELECT: "Select area",
@@ -1528,7 +1582,7 @@ class OverlayWidget(QWidget):
         painter.setPen(QPen(QColor(0, 120, 255), 1, Qt.PenStyle.DashLine))
         painter.drawRect(QRect(left, top, right - left, bottom - top))
 
-    def _draw_voltage_scale_bar(self, painter: QPainter):
+    def _draw_amplitude_scale_bar(self, painter: QPainter):
         bar_height = self._channel_height // settings.MEASURE_BAR_DIVIDER
         if bar_height <= 0:
             return
@@ -1539,7 +1593,7 @@ class OverlayWidget(QWidget):
         painter.fillRect(int(x), int(y), self._bar_width, bar_height, QColor(255, 0, 0))
 
         value = self._scale_value / settings.MEASURE_BAR_DIVIDER
-        label_text = f"{value:.1f} µV"
+        label_text = format_amplitude(value, self._unit_label)
         x_size = self._font_metrics.horizontalAdvance(label_text) + 10
         label_rect = QRect(int(x) - x_size, int(y + bar_height // 2), x_size, 16)
         painter.drawText(label_rect, Qt.AlignmentFlag.AlignCenter, label_text)
@@ -1552,17 +1606,17 @@ class OverlayWidget(QWidget):
             return
 
         time_bar_pixels = max(10, min(axis_width // 10, 120))
+        time_value_ms = (time_bar_pixels / axis_width) * self._duration_ms
+        snapped_ms, label_text = snap_measure_bar_time(time_value_ms)
+        # Width tracks the snapped label: 749 ms -> 500 ms shrinks the bar,
+        # 750 ms -> 1 s grows it by the same ratio the value changed.
+        time_bar_pixels = max(1, int(round(axis_width * snapped_ms / self._duration_ms)))
+
         y = self._cursor_pos.y() - self._bar_width
         x = self._cursor_pos.x()
         x = max(0, min(x, self.width() - self._right_margin - time_bar_pixels))
 
         painter.fillRect(int(x), int(y), time_bar_pixels, self._bar_width, QColor(255, 0, 0))
-
-        time_value_ms = (time_bar_pixels / axis_width) * self._duration_ms
-        if time_value_ms < 1000:
-            label_text = f"{time_value_ms:.1f} ms"
-        else:
-            label_text = f"{time_value_ms / 1000:.2f} s"
 
         # Draw the full label (don't clip to the tick width); clamp inside widget.
         text_width = self._font_metrics.horizontalAdvance(label_text) + 10
@@ -1906,7 +1960,7 @@ class SignalPanel(QWidget):
         """)
 
     def _can_drag_signal_x(self) -> bool:
-        return self._current_overlay_mode in (OverlayModeEnum.NONE, OverlayModeEnum.TIME_VOLTAGE_BAR)
+        return self._current_overlay_mode in (OverlayModeEnum.NONE, OverlayModeEnum.TIME_AMPLITUDE_BAR)
 
     def _start_signal_drag(self, x_pos: int):
         if not self._can_drag_signal_x():
@@ -2174,6 +2228,7 @@ class SignalPanel(QWidget):
             overlay_data_version=self._cached_overlay_data_version,
             group_layouts=group_layouts,
             channels_setup=gui_setup.channels_setup,
+            channel_units=self._channel_units(),
             start_point=gui_setup.start_point,
             duration_ms=gui_setup.duration_ms,
             start_time_ms=self._start_time_ms,
@@ -2187,6 +2242,7 @@ class SignalPanel(QWidget):
             periods_are_visible=gui_setup.periods_are_shown,
             traces_are_visible=gui_setup.traces_are_shown,
             channel_names_are_visible=gui_setup.channel_names_are_shown,
+            channel_infos_are_visible=gui_setup.channel_infos_are_shown,
             viewable_add_ons=viewable_add_ons,
             add_ons_data_dir=add_ons_data_dir,
         )
@@ -2271,7 +2327,7 @@ class SignalPanel(QWidget):
         measure_cursor_pos = self._resolve_measure_cursor_pos()
 
         # Adapt the measure bar to the cell/group under the cursor: each cell maps
-        # the full time window across its own width, so time/voltage scaling must
+        # the full time window across its own width, so time/amplitude scaling must
         # use that cell's geometry rather than the whole signal area.
         measure_rect = None
         if measure_cursor_pos is not None:
@@ -2283,7 +2339,7 @@ class SignalPanel(QWidget):
             channel_height = self.signal_widget._channel_height or self._channel_height
             time_axis_width = 0
 
-        scale_value = self._resolve_measure_scale_value(measure_cursor_pos)
+        scale_value, unit_label = self._resolve_measure_scale_value(measure_cursor_pos)
         cursor_is_aux = bool(measure_cursor_pos and self.signal_widget.is_auxiliary_at(measure_cursor_pos))
 
         # Determine selection_start_time_ms based on current mode
@@ -2312,13 +2368,14 @@ class SignalPanel(QWidget):
             cursor_pos=measure_cursor_pos,
             overlay_mode=(
                 OverlayModeEnum.NONE
-                if (cursor_is_aux and self._current_overlay_mode == OverlayModeEnum.TIME_VOLTAGE_BAR)
+                if (cursor_is_aux and self._current_overlay_mode == OverlayModeEnum.TIME_AMPLITUDE_BAR)
                 else self._current_overlay_mode
             ),
             channel_height=channel_height,
             duration_ms=duration_ms,
             time_axis_width=time_axis_width,
             scale_value=scale_value,
+            unit_label=unit_label,
             start_time_ms=start_time_ms,
             current_sweep_idx=(gui_setup.current_sweep_idx if gui_setup else 0),
             selection_start_time_ms=selection_start_time_ms,
@@ -2327,19 +2384,29 @@ class SignalPanel(QWidget):
         )
 
     def _resolve_measure_cursor_pos(self) -> Optional[QPoint]:
-        if self._current_overlay_mode == OverlayModeEnum.TIME_VOLTAGE_BAR:
+        if self._current_overlay_mode == OverlayModeEnum.TIME_AMPLITUDE_BAR:
             if self._measure_bar_state == MeasureBarStateEnum.FROZEN:
                 return self._frozen_measure_pos
             return self._current_mouse_pos
         return self._current_mouse_pos
 
-    def _resolve_measure_scale_value(self, measure_cursor_pos: Optional[QPoint]) -> float:
+    def _resolve_measure_scale_value(self, measure_cursor_pos: Optional[QPoint]) -> Tuple[float, str]:
+        """(scale, unit label) of the channel the measure bar is placed over."""
         if measure_cursor_pos is None:
-            return settings.DEFAULT_SCALE
-        scale_value = self.signal_widget.get_scale_for_non_aux_at(measure_cursor_pos)
-        if scale_value is None or scale_value <= 0:
-            return settings.DEFAULT_SCALE
-        return scale_value
+            return settings.DEFAULT_SCALE, ""
+        channel_idx = self.signal_widget.get_measure_channel_at(measure_cursor_pos)
+        if channel_idx is None:
+            return settings.DEFAULT_SCALE, ""
+        scale_value = self.signal_widget.get_channel_scale(channel_idx)
+        if scale_value <= 0:
+            scale_value = self._session_manager.default_scale_for_channel(channel_idx)
+        return scale_value, self.signal_widget.get_channel_unit(channel_idx)
+
+    def _channel_units(self) -> Dict[int, str]:
+        header = self._session_manager.header if self._session_manager else None
+        if header is None:
+            return {}
+        return {idx: header.channel_unit_display(idx) for idx in range(header.number_of_channels)}
 
     def _should_hide_cursor(self) -> bool:
         if self._current_overlay_mode in (
@@ -2350,7 +2417,7 @@ class SignalPanel(QWidget):
                 OverlayModeEnum.PERIOD_ADD,
         ):
             return self._current_mouse_pos is not None
-        return (self._current_overlay_mode == OverlayModeEnum.TIME_VOLTAGE_BAR
+        return (self._current_overlay_mode == OverlayModeEnum.TIME_AMPLITUDE_BAR
                 and self._measure_bar_state == MeasureBarStateEnum.FOLLOW_CURSOR)
 
     def _reset_measure_bar_state(self):
@@ -2447,7 +2514,7 @@ class SignalPanel(QWidget):
 
     def cycle_scalebar(self) -> bool:
         """Cycle the scalebar the same way as the M key: follow, freeze, off."""
-        if self._current_overlay_mode not in (OverlayModeEnum.NONE, OverlayModeEnum.TIME_VOLTAGE_BAR):
+        if self._current_overlay_mode not in (OverlayModeEnum.NONE, OverlayModeEnum.TIME_AMPLITUDE_BAR):
             return False
         if self._measure_bar_state == MeasureBarStateEnum.HIDDEN:
             return self._set_scalebar_following()
@@ -2462,7 +2529,7 @@ class SignalPanel(QWidget):
 
     def toggle_scalebar(self) -> bool:
         """Turn the following scalebar on or off. The toolbar button does not freeze it."""
-        if self._current_overlay_mode not in (OverlayModeEnum.NONE, OverlayModeEnum.TIME_VOLTAGE_BAR):
+        if self._current_overlay_mode not in (OverlayModeEnum.NONE, OverlayModeEnum.TIME_AMPLITUDE_BAR):
             return False
         if self.scalebar_is_active():
             return self._set_scalebar_hidden()
@@ -2470,7 +2537,7 @@ class SignalPanel(QWidget):
 
     def _set_scalebar_following(self) -> bool:
         self._measure_bar_state = MeasureBarStateEnum.FOLLOW_CURSOR
-        self._current_overlay_mode = OverlayModeEnum.TIME_VOLTAGE_BAR
+        self._current_overlay_mode = OverlayModeEnum.TIME_AMPLITUDE_BAR
         self._frozen_measure_pos = None
         self.setCursor(Qt.CursorShape.BlankCursor)
         self._update_overlay_widget()
@@ -2480,7 +2547,7 @@ class SignalPanel(QWidget):
     def _set_scalebar_hidden(self) -> bool:
         self._measure_bar_state = MeasureBarStateEnum.HIDDEN
         self._frozen_measure_pos = None
-        if self._current_overlay_mode == OverlayModeEnum.TIME_VOLTAGE_BAR:
+        if self._current_overlay_mode == OverlayModeEnum.TIME_AMPLITUDE_BAR:
             self._current_overlay_mode = OverlayModeEnum.NONE
         self.unsetCursor()
         self._update_overlay_widget()
@@ -2586,6 +2653,7 @@ class SignalPanel(QWidget):
             end_time_ms=end_ms,
             overlay_channel_data=overlay_subset,
             channel_cut_traces=channel_cut_traces,
+            channel_units=self._channel_units(),
             parent=self,
         )
         dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -2761,13 +2829,15 @@ class SignalPanel(QWidget):
 
     def _apply_event_edit_in_window(self, *, start_sweep_idx: int, start_ms: float,
                                     end_sweep_idx: int, end_ms: float):
-        """Apply current edit mode to all events inside [start_sweep/start_ms, end_sweep/end_ms]."""
+        """Apply current edit mode to visible events inside [start_sweep/start_ms, end_sweep/end_ms]."""
         events = self._session_manager.events
         if not events:
             return
 
         affected_events = []
         for event in events:
+            if not self._event_type_is_visible(event):
+                continue
             if event.sweep_idx < start_sweep_idx or event.sweep_idx > end_sweep_idx:
                 continue
             if start_sweep_idx == end_sweep_idx:

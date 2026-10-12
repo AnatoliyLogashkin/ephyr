@@ -7,7 +7,11 @@ Ephyr is a lightweight yet powerful environment for labelling electrophysiologic
 
 Fully open-source and built in Python, the platform provides a flexible API for post-annotation data access. Its add-on architecture lets you extend functionality seamlessly without modifying the core codebase.
 
-![Ephyr application overview](docs/source/_static/getting_started/app_overview.png)
+
+|                                       ECoG + Probe + Stimulus                                       |                                          HD MEA + GCAMP                                           |                                             Patch clamp with multiple sweeps                                             |
+|:-----------------------------------------------------------------------------------:|:------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|
+| ![Ephyr application overview](docs/source/_static/getting_started/app_overview.png) | ![Ephyr application overview](docs/source/_static/getting_started/app_overview_hd_mea.png) | ![Ephyr application overview](docs/source/_static/getting_started/app_overview_patch_clamp.png) |
+
 
 **Documentation:** [https://ephyr.readthedocs.io/](https://ephyr.readthedocs.io/)
 

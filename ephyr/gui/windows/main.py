@@ -144,7 +144,7 @@ class MainWindow(QMainWindow, QWidgetMixin):
         self.btn_zoom_to_area.setCheckable(True)
 
         self.btn_screenshot = QToolButton(header)
-        self.btn_screenshot.setText("Export Canvas")
+        self.btn_screenshot.setText("Export canvas")
 
         self.btn_right_panel_toggle = QToolButton(header)
         self.btn_right_panel_toggle.setText("Show session panel")
@@ -290,11 +290,13 @@ class MainWindow(QMainWindow, QWidgetMixin):
         self._add_labeled_menu_section(view_menu, "Data Panel")
         self.view_traces = QAction("Channel Traces", self, checkable=True, checked=True)
         self.view_channel_names = QAction("Channel Names", self, checkable=True, checked=True)
+        self.view_channel_info = QAction("Channel Info", self, checkable=True, checked=True)
         self.view_events = QAction("Events", self, checkable=True, checked=False)
         self.view_periods = QAction("Periods", self, checkable=True, checked=False)
         for action in (
                 self.view_traces,
                 self.view_channel_names,
+                self.view_channel_info,
                 self.view_events,
                 self.view_periods,
         ):
@@ -321,8 +323,8 @@ class MainWindow(QMainWindow, QWidgetMixin):
         events_menu = menubar.addMenu("Events")
         self.events_show_all_action = QAction("Manage", self)
         self.events_remove_action = QAction("Remove in Range", self)
-        self.events_set_bad_event_action = QAction("Set Bad", self)
-        self.events_unset_bad_event_action = QAction("Unset Bad", self)
+        self.events_set_bad_event_action = QAction("Mark as Invalid", self)
+        self.events_unset_bad_event_action = QAction("Remove Invalid Mark", self)
         events_menu.addAction(self.events_show_all_action)
         events_menu.addAction(self.events_remove_action)
         events_menu.addAction(self.events_set_bad_event_action)
@@ -381,6 +383,7 @@ class MainWindow(QMainWindow, QWidgetMixin):
         self.act_copy_image.triggered.connect(self.on_screenshot)
         self.view_traces.triggered.connect(self.on_view_traces)
         self.view_channel_names.triggered.connect(self.on_view_channel_names)
+        self.view_channel_info.triggered.connect(self.on_view_channel_info)
         self.view_events.triggered.connect(self.on_view_events)
         self.view_periods.triggered.connect(self.on_view_periods)
         self.view_recording_navigation_panel.triggered.connect(self.on_view_recording_navigation_panel)
@@ -407,6 +410,7 @@ class MainWindow(QMainWindow, QWidgetMixin):
         self.session_manager.duration_ms_changed.connect(self.on_time_window_changed)
         self.session_manager.traces_are_shown_changed.connect(self.on_view_categories_changed)
         self.session_manager.channel_names_are_shown_changed.connect(self.on_view_categories_changed)
+        self.session_manager.channel_infos_are_shown_changed.connect(self.on_view_categories_changed)
         self.session_manager.events_are_shown_changed.connect(self.on_view_categories_changed)
         self.session_manager.periods_are_shown_changed.connect(self.on_view_categories_changed)
         self.session_manager.cut_traces_changed.connect(self.on_view_categories_changed)
@@ -439,7 +443,7 @@ class MainWindow(QMainWindow, QWidgetMixin):
         self.__recalculate_and_redraw_necessary_signals(recalculate_data=False)
 
     def on_header_units_changed(self, _units):
-        self.__recalculate_and_redraw_necessary_signals(recalculate_data=True)
+        self.__recalculate_and_redraw_necessary_signals(recalculate_data=False)
 
     def on_time_window_changed(self):
         self.__recalculate_and_redraw_necessary_signals(recalculate_data=True, )
@@ -684,6 +688,9 @@ class MainWindow(QMainWindow, QWidgetMixin):
             self.__set_status("Recent experiment folder does not exist")
 
     def on_open_another_session(self, session_filename: str):
+        if not self.__confirm_discard_unsaved_changes("Are you sure you want to switch to another session?"):
+            return
+
         try:
             self.__switch_to_session(session_filename)
         except Exception as e:
@@ -897,6 +904,10 @@ class MainWindow(QMainWindow, QWidgetMixin):
         if self.session_manager.session_is_active:
             self.session_manager.set_channel_names_shown(checked)
 
+    def on_view_channel_info(self, checked: bool, *args, **kwargs):
+        if self.session_manager.session_is_active:
+            self.session_manager.set_channel_infos_shown(checked)
+
     def on_view_events(self, checked: bool, *args, **kwargs):
         if self.session_manager.session_is_active:
             self.session_manager.set_events_shown(checked)
@@ -1000,7 +1011,7 @@ class MainWindow(QMainWindow, QWidgetMixin):
             return
 
         self.signal_panel.start_unset_bad_event_mode()
-        self.__set_status("Select two points on EEG panel to unset bad flag for events (right click to cancel)")
+        self.__set_status("Select two points on EEG panel to remove invalid mark for events (right click to cancel)")
 
     def on_remove_event(self):
         if not self.session_manager.session_is_active:
@@ -1096,6 +1107,7 @@ class MainWindow(QMainWindow, QWidgetMixin):
             duration_ms=gui_setup.duration_ms,
             groups_layout=self.signal_panel.get_visible_groups_layout(),
             channels_setup=gui_setup.channels_setup,
+            channel_units=self.signal_panel.signal_widget.channel_units,
         )
         result = ScreenshotExportDialog.run_export(self, context)
         self.__set_status(result.message)
@@ -1149,6 +1161,7 @@ class MainWindow(QMainWindow, QWidgetMixin):
     def __update_menu(self):
         self.view_traces.setChecked(self.session_manager.gui_setup.traces_are_shown)
         self.view_channel_names.setChecked(self.session_manager.gui_setup.channel_names_are_shown)
+        self.view_channel_info.setChecked(self.session_manager.gui_setup.channel_infos_are_shown)
         self.view_events.setChecked(self.session_manager.gui_setup.events_are_shown)
         self.view_periods.setChecked(self.session_manager.gui_setup.periods_are_shown)
 

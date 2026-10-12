@@ -97,6 +97,7 @@ Checkable items that control the visibility of layers on the data panel and rela
 |------|---------|
 | **Channel Traces** | Show or hide waveform traces. |
 | **Channel names** | Show or hide channel name labels drawn on each channel cell. |
+| **Channel Info** | Show or hide `ChannelSetup.info` on each channel cell. When names are also shown and info is not empty, the two are separated by a vertical bar. |
 | **Events** | Show or hide event markers. |
 | **Periods** | Show or hide period intervals and labels. |
 
@@ -130,12 +131,12 @@ enabled when a type is selected: it places you in interactive mode so you can cl
 
 Defines a two-click range that deletes events within the range. Right-click or **Esc** cancels.
 
-### Set Bad
+### Mark as Invalid
 
 Defines an interactive two-click range on the signal; events within the range are marked as bad.
 Right-click or **Esc** cancels.
 
-### Unset Bad
+### Remove Invalid Mark
 
 Defines an interactive two-click range on the signal; clears the bad flag on events within the range.
 

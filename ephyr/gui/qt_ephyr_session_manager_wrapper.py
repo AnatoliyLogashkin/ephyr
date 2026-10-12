@@ -10,7 +10,7 @@ from ephyr.core.add_ons.utils import load_installed_add_ons, load_dev_add_ons
 from ephyr import settings
 from ephyr.core.conversions.filters import ensure_filters_list
 
-from ephyr.core.header import Header, VoltageUnitEnum
+from ephyr.core.header import Header, canonical_unit_label
 from ephyr.core.ephyr_session import (
     EphyrSessionManager,
     GuiSetup,
@@ -74,6 +74,7 @@ class QtEphyrSessionManagerWrapper(QObject):
     # Signals for boolean flags
     traces_are_shown_changed = pyqtSignal(bool)
     channel_names_are_shown_changed = pyqtSignal(bool)
+    channel_infos_are_shown_changed = pyqtSignal(bool)
     events_are_shown_changed = pyqtSignal(bool)
     periods_are_shown_changed = pyqtSignal(bool)
     cut_traces_changed = pyqtSignal(bool)
@@ -123,6 +124,16 @@ class QtEphyrSessionManagerWrapper(QObject):
             return self._session_manager.experiment_data.header
 
         return None
+
+    def channel_unit_display(self, channel_idx: int) -> str:
+        header = self.header
+        return header.channel_unit_display(channel_idx) if header else ""
+
+    def default_scale_for_channel(self, _channel_idx: int) -> float:
+        return float(settings.DEFAULT_SCALE)
+
+    def default_scale_for_group(self, _channel_indexes: List[int]) -> float:
+        return float(settings.DEFAULT_SCALE)
 
     @property
     def gui_setup(self) -> Optional[GuiSetup]:
@@ -198,6 +209,11 @@ class QtEphyrSessionManagerWrapper(QObject):
     def set_channel_names_shown(self, shown: bool):
         self._session_manager.current_user_session.gui_setup.channel_names_are_shown = shown
         self.channel_names_are_shown_changed.emit(shown)
+
+    @user_session_modification
+    def set_channel_infos_shown(self, shown: bool):
+        self._session_manager.current_user_session.gui_setup.channel_infos_are_shown = shown
+        self.channel_infos_are_shown_changed.emit(shown)
 
     @user_session_modification
     def set_add_on(
@@ -488,15 +504,16 @@ class QtEphyrSessionManagerWrapper(QObject):
         )
         self.channel_setup_changed.emit()
 
-    def set_header_channel_units(self, channel_indexes: List[int], unit: VoltageUnitEnum) -> bool:
+    def set_header_channel_units(self, channel_indexes: List[int], unit: str) -> bool:
+        """Relabel channels with a new unit; stored samples and their numeric values stay unchanged."""
         header = self.header
         if header is None or not channel_indexes:
             return False
 
-        target_unit = VoltageUnitEnum.normalize(unit.value if isinstance(unit, VoltageUnitEnum) else str(unit)).value
+        target_unit = canonical_unit_label(unit)
         units = list(header.channel_info.units or [])
         if len(units) < header.number_of_channels:
-            units.extend([VoltageUnitEnum.MICROVOLT.value] * (header.number_of_channels - len(units)))
+            units.extend([""] * (header.number_of_channels - len(units)))
 
         changed = False
         for channel_idx in channel_indexes:

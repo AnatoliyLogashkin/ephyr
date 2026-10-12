@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QGridLayout,
     QSizePolicy,
+    QAbstractSpinBox,
 )
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -48,6 +49,7 @@ from ephyr.gui.widgets import (
     FocusWheelComboBox as QComboBox,
     FocusWheelDoubleSpinBox as QDoubleSpinBox,
     FocusWheelSpinBox as QSpinBox,
+    TrimmedDoubleSpinBox,
 )
 from ephyr.logger import ephyr_logger
 from ephyr.core.conversions.filters import (
@@ -1469,24 +1471,24 @@ class ChannelManagementPanel(QWidget):
             ])
 
             if scale_spin is not None:
-                self._add_stretch_row(box_layout, [self._labeled_stretch_cell("Scale (uV):", scale_spin)])
+                self._add_stretch_row(box_layout, [self._labeled_stretch_cell("Scale factor:", scale_spin)])
 
             aux_row_cells = []
-            if self._is_expert:
-                aux_checkbox = QCheckBox()
-                aux_checkbox.setChecked(group.is_auxiliary)
-                aux_checkbox.stateChanged.connect(
-                    lambda state, idx=group_idx: self._on_aux_changed(
-                        idx, Qt.CheckState(state) == Qt.CheckState.Checked
-                    )
-                )
-                aux_row_cells.append(self._labeled_stretch_cell("Auxiliary channels:", aux_checkbox))
             if y_offset_spin is not None:
                 if self._is_expert:
                     aux_row_cells.append(self._labeled_stretch_cell("Y offset:", y_offset_spin))
                 else:
                     y_offset_spin.setParent(box)
                     y_offset_spin.hide()
+            if self._is_expert:
+                aux_checkbox = QCheckBox()
+                aux_checkbox.setChecked(group.is_auxiliary)
+                aux_checkbox.stateChanged.connect(
+                    lambda state, idx=group_idx, checkbox=aux_checkbox: self._on_aux_changed(
+                        idx, Qt.CheckState(state) == Qt.CheckState.Checked, checkbox
+                    )
+                )
+                aux_row_cells.append(self._labeled_stretch_cell("Auxiliary channels:", aux_checkbox))
             if aux_row_cells:
                 self._add_stretch_row(box_layout, aux_row_cells)
 
@@ -1574,15 +1576,11 @@ class ChannelManagementPanel(QWidget):
         if not channel_indexes:
             return None, None, None
         sample = channels_setup.get(channel_indexes[0])
-        scale_val = float(getattr(sample, "scale", settings.DEFAULT_SCALE))
+        scale_val = float(getattr(sample, "scale", self._session_manager.default_scale_for_channel(channel_indexes[0])))
         y_offset_val = float(getattr(sample, "y_offset", 0.0))
         color_val = str(getattr(sample, "color", "#000000"))
 
-        scale_spin = QDoubleSpinBox()
-        scale_spin.setRange(settings.MIN_SCALE, settings.MAX_SCALE)
-        scale_spin.setKeyboardTracking(False)
-        scale_spin.setSingleStep(settings.SCALE_STEP)
-        scale_spin.setValue(scale_val)
+        scale_spin = self._make_scale_spin(scale_val)
         scale_spin.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         y_offset_spin = QDoubleSpinBox()
         y_offset_spin.setRange(-1_000_000.0, 1_000_000.0)
@@ -1619,6 +1617,19 @@ class ChannelManagementPanel(QWidget):
 
         color_btn.clicked.connect(on_pick_color)
         return scale_spin, y_offset_spin, color_btn
+
+    @staticmethod
+    def _make_scale_spin(value: float, unit_label: str = "") -> QDoubleSpinBox:
+        """Scale spinbox valid for any unit prefix: from 0.001 µA to 100000 µV."""
+        scale_spin = TrimmedDoubleSpinBox()
+        scale_spin.setDecimals(settings.SCALE_DECIMALS)
+        scale_spin.setRange(settings.MIN_SCALE, settings.MAX_SCALE)
+        scale_spin.setStepType(QAbstractSpinBox.StepType.AdaptiveDecimalStepType)
+        scale_spin.setKeyboardTracking(False)
+        if unit_label:
+            scale_spin.setSuffix(f" {unit_label}")
+        scale_spin.setValue(value)
+        return scale_spin
 
     @staticmethod
     def _labeled_stretch_cell(text: str, widget: QWidget) -> QWidget:
@@ -1679,7 +1690,7 @@ class ChannelManagementPanel(QWidget):
             cur_setup = self._session_manager.gui_setup.channels_setup.get(channel_idx)
             self._session_manager.set_channel_setup(
                 channel_idx,
-                scale=float(getattr(cur_setup, "scale", settings.DEFAULT_SCALE)),
+                scale=float(getattr(cur_setup, "scale", self._session_manager.default_scale_for_channel(channel_idx))),
                 y_offset=float(getattr(cur_setup, "y_offset", 0.0)),
                 color=str(getattr(cur_setup, "color", "#000000")),
                 info=info_edit.text().strip(),
@@ -1691,11 +1702,9 @@ class ChannelManagementPanel(QWidget):
 
         if group.is_auxiliary:
             color = str(getattr(setup, "color", "#000000"))
-            scale = float(getattr(setup, "scale", settings.DEFAULT_SCALE))
+            scale = float(getattr(setup, "scale", self._session_manager.default_scale_for_channel(channel_idx)))
             y_offset = float(getattr(setup, "y_offset", 0.0))
-            scale_spin = QDoubleSpinBox(); scale_spin.setRange(settings.MIN_SCALE, settings.MAX_SCALE)
-            scale_spin.setKeyboardTracking(False)
-            scale_spin.setSingleStep(settings.SCALE_STEP); scale_spin.setValue(scale)
+            scale_spin = self._make_scale_spin(scale, self._session_manager.channel_unit_display(channel_idx))
             y_spin = QDoubleSpinBox(widget); y_spin.setRange(-1_000_000.0, 1_000_000.0)
             y_spin.setKeyboardTracking(False)
             y_spin.setSingleStep(10.0); y_spin.setValue(y_offset)
@@ -1913,7 +1922,7 @@ class ChannelManagementPanel(QWidget):
             group.channels_layout.cur_column_idx = 0
         self._session_manager.set_channels_groups(groups)
 
-    def _on_aux_changed(self, group_idx: int, is_auxiliary: bool):
+    def _on_aux_changed(self, group_idx: int, is_auxiliary: bool, checkbox: Optional[QCheckBox] = None):
         gui_setup = self._session_manager.gui_setup
         if not gui_setup or not (0 <= group_idx < len(gui_setup.channels_groups)):
             return
@@ -1926,14 +1935,27 @@ class ChannelManagementPanel(QWidget):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
+                if checkbox is not None:
+                    # Inside stateChanged, Qt skips checkStateSet(), so a synchronous
+                    # setChecked leaves the published state stale. The next click then
+                    # unchecks the box without emitting the signal. Restore now for the
+                    # visual, and again after the click finishes so the signal fires.
+                    self._restore_aux_checkbox(checkbox)
+                    QTimer.singleShot(0, lambda cb=checkbox: self._restore_aux_checkbox(cb))
                 return
             self._session_manager.set_channels_setup(
                 current.channel_indexes,
-                scale=settings.DEFAULT_SCALE,
+                scale=self._session_manager.default_scale_for_group(current.channel_indexes),
                 y_offset=0.0,
                 color="#000000",
             )
         self._session_manager.set_channel_group_field(group_idx, is_auxiliary=is_auxiliary)
+
+    @staticmethod
+    def _restore_aux_checkbox(checkbox: QCheckBox):
+        checkbox.blockSignals(True)
+        checkbox.setChecked(True)
+        checkbox.blockSignals(False)
 
     def get_channel_name(self, channel_idx: int) -> str:
         header = self._session_manager.header
