@@ -19,3 +19,6 @@ build-docs:
 
 local-docs:
 	mkdocs serve
+
+changelog:
+	changelog-maestro --template devtools/changelog.md.j2

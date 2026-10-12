@@ -1,19 +1,35 @@
 
-## Version Unreleased (2026-10-07)
+## Version 1.0.15 (2026-10-12)
 
 
 
   
 ### Features
     
+- support different units
+    
+- show channel name and channel info
+    
+- round measure bar and resize
+    
 - panel scroll, duration input focus, group layout flow
+    
+  
+
+  
+### Bug Fixes
+    
+- switch to AUX channels and back checkbox
     
   
 
   
 
   
-
+### Documentation
+    
+- add CHANGELOG and Development section
+    
   
 
 
