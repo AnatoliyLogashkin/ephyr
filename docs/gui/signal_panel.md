@@ -17,8 +17,8 @@ optional clipping apply when drawing. Channel name labels on each cell can be hi
 On top of the traces you can place:
 
 - **Events** — vertical markers at a specific time in a sweep, colored by vocabulary entry. Events can be
-  flagged as bad. Use **Events → Manage** for vocabulary and to add events; **Remove in Range**, **Set Bad**,
-  and **Unset Bad** start the corresponding interactive modes.
+  flagged as bad. Use **Events → Manage** for vocabulary and to add events; **Remove in Range**, **Mark as Invalid**,
+  and **Remove Invalid Mark** start the corresponding interactive modes.
 - **Periods** — labeled intervals (optionally spanning sweeps). Use **Periods → Manage** for vocabulary
   and to add intervals with two clicks.
 

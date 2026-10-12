@@ -31,7 +31,6 @@ class TopNavigatorWidget(QWidget):
         super().__init__(parent)
         self._BG_COLOR = QColor(240, 240, 240)  # Same as SignalWidget
         self._TEXT_COLOR = QColor(0, 0, 255)
-        self._TEXT_BAD_COLOR = QColor(255, 0, 0)
         self._ARROW_COLOR = QColor(100, 100, 100)
         self._ARROW_HOVER_COLOR = QColor(0, 0, 200)
         self._left_margin = left_margin
@@ -105,13 +104,9 @@ class TopNavigatorWidget(QWidget):
             idx_in_sweep = same_name_events.index(event) + 1
         except ValueError:
             idx_in_sweep = 1
-        if getattr(event, "is_bad", False):
-            return f"{base_name} ({idx_in_sweep}, bad)"
         return f"{base_name} ({idx_in_sweep})"
 
     def _event_color(self, event) -> QColor:
-        if getattr(event, "is_bad", False):
-            return QColor(255, 0, 0)
         entry = self._events_vocabulary.get(event.event_name_id)
         color_str = entry.color if entry else "#0066FF"
         color = QColor(color_str)
@@ -963,7 +958,12 @@ class SignalWidget(QWidget):
 
         for event in self._visible_events:
             rel = (event.time_ms - self._start_time_ms) / self._axis_duration_ms
-            painter.setPen(QPen(self.top_level_event_color(event), 1.5))
+            line_style = (
+                Qt.PenStyle.DashLine
+                if getattr(event, "is_bad", False)
+                else Qt.PenStyle.SolidLine
+            )
+            painter.setPen(QPen(self.top_level_event_color(event), 1.5, line_style))
             for rect in self._marker_target_rects():
                 x_int = int(rect.left() + rel * rect.width())
                 painter.drawLine(x_int, rect.top(), x_int, rect.bottom())
@@ -993,8 +993,6 @@ class SignalWidget(QWidget):
                     painter.drawLine(x_int, rect.top(), x_int, rect.bottom())
 
     def top_level_event_color(self, event) -> QColor:
-        if getattr(event, "is_bad", False):
-            return QColor(255, 0, 0)
         entry = self._events_vocabulary.get(event.event_name_id)
         color = QColor(entry.color if entry else "#0066FF")
         if color.isValid():
@@ -1522,8 +1520,8 @@ class OverlayWidget(QWidget):
         painter.setFont(self._font)
         mode_labels = {
             OverlayModeEnum.EVENT_ADD: "Add event",
-            OverlayModeEnum.EVENT_BAD_SET: "Set bad event",
-            OverlayModeEnum.EVENT_BAD_UNSET: "Unset bad event",
+            OverlayModeEnum.EVENT_BAD_SET: "Mark as invalid",
+            OverlayModeEnum.EVENT_BAD_UNSET: "Remove invalid mark",
             OverlayModeEnum.EVENT_REMOVE: "Remove",
             OverlayModeEnum.PERIOD_ADD: "Add period",
             OverlayModeEnum.FULL_VIEW_SELECT: "Select area",
@@ -2831,13 +2829,15 @@ class SignalPanel(QWidget):
 
     def _apply_event_edit_in_window(self, *, start_sweep_idx: int, start_ms: float,
                                     end_sweep_idx: int, end_ms: float):
-        """Apply current edit mode to all events inside [start_sweep/start_ms, end_sweep/end_ms]."""
+        """Apply current edit mode to visible events inside [start_sweep/start_ms, end_sweep/end_ms]."""
         events = self._session_manager.events
         if not events:
             return
 
         affected_events = []
         for event in events:
+            if not self._event_type_is_visible(event):
+                continue
             if event.sweep_idx < start_sweep_idx or event.sweep_idx > end_sweep_idx:
                 continue
             if start_sweep_idx == end_sweep_idx:

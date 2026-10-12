@@ -45,7 +45,7 @@ class EventsVocabularyDialog(QDialog):
 
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(
-            ["Visible", "ID", "Name", "Color", "Num in sweep", "Num in sweeps"]
+            ["Visible", "ID", "Name", "Color", "Num per sweep", "Num per record"]
         )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)

@@ -126,7 +126,7 @@ class SetEventsBadFlagCommand(ModifyEventsCommand):
             (ev.event_name_id, ev.sweep_idx, ev.time_ms) for ev in events
         ]
         self._new_is_bad: bool = is_bad
-        self.description = "set bad event flag" if is_bad else "unset bad event flag"
+        self.description = "mark as invalid" if is_bad else "remove invalid mark"
 
     def _apply_change(self, session: UserSession) -> None:
         # Find events by their identifiers

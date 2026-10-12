@@ -126,12 +126,12 @@ interactive mode so you can click on the signal to add an event at that time. Ri
 
 Two-click range that deletes events inside the range. Right-click or **Esc** cancels.
 
-### Set Bad
+### Mark as Invalid
 
 Interactive two-click range on the signal: events inside the range are marked as bad.
 Right-click or **Esc** cancels.
 
-### Unset Bad
+### Remove Invalid Mark
 
 Two-click range that clears the bad flag on events inside the range.
 

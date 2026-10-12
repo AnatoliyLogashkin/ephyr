@@ -323,8 +323,8 @@ class MainWindow(QMainWindow, QWidgetMixin):
         events_menu = menubar.addMenu("Events")
         self.events_show_all_action = QAction("Manage", self)
         self.events_remove_action = QAction("Remove in Range", self)
-        self.events_set_bad_event_action = QAction("Set Bad", self)
-        self.events_unset_bad_event_action = QAction("Unset Bad", self)
+        self.events_set_bad_event_action = QAction("Mark as Invalid", self)
+        self.events_unset_bad_event_action = QAction("Remove Invalid Mark", self)
         events_menu.addAction(self.events_show_all_action)
         events_menu.addAction(self.events_remove_action)
         events_menu.addAction(self.events_set_bad_event_action)
@@ -1011,7 +1011,7 @@ class MainWindow(QMainWindow, QWidgetMixin):
             return
 
         self.signal_panel.start_unset_bad_event_mode()
-        self.__set_status("Select two points on EEG panel to unset bad flag for events (right click to cancel)")
+        self.__set_status("Select two points on EEG panel to remove invalid mark for events (right click to cancel)")
 
     def on_remove_event(self):
         if not self.session_manager.session_is_active:
