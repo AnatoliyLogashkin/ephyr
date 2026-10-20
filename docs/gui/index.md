@@ -1,6 +1,6 @@
 # Main Window
 
-When an experiment session is open, the Ephyr window is organized as follows.
+When a Record session is open, the Ephyr window is organized as follows.
 
 ![Annotated main window](../source/_static/gui/main_window_annotated.png)
 
@@ -15,7 +15,9 @@ When an experiment session is open, the Ephyr window is organized as follows.
 | **Session panel** (right) | Includes Session panel mode selection (Beginner / Expert), timeline and channel settings, recording description, add-ons list, and application logs. See [Session Panel](settings_panel.md). |
 | **Status bar** | Timestamped status messages from the application. The current session name, recording name, and folder appear on the right.|
 
-Before any experiment is loaded, the left area shows a start screen with a quick Open action and a short hotkey list.
+Before any workspace is open, the left area shows a start screen with Create / Open / Recent. An empty
+workspace shows **Add config** in the centre. A workspace with Configs but no open Record still shows
+the recording navigation panel.
 
 ## Data panel highlights
 

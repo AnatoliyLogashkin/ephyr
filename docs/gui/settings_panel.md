@@ -17,9 +17,11 @@ An independent right-panel section enabled with **View → Session Panel → Rec
 
 | Control | Mode | Purpose |
 |---------|------|---------|
-| Sweep info | Both | Sample rate and duration of the current sweep. |
-| **Current sweep** | Both | Selects which sweep is displayed (1-based in the UI). Disabled when the recording has a single sweep. |
-| **Set overlay** | Both | Choose other sweeps to draw in gray behind the current one, with the same filters and transformations. Disabled when the recording has a single sweep. |
+| **Config / Record / Source** | Both | Combo boxes plus **+** / **−** / **✎** to add, remove (with confirmation) and rename. Switching Source reloads the traces. |
+| **Navigation** | Both | **Continuous** (one concatenated view with gap markers), **By segment** (each physical segment, plus overlay), or **By period label** (a window around each period of a chosen label, with Before / After). |
+| Segment info | Both | Sample rate, channel count, number of segments, and the start and duration of the current display segment. |
+| **Current segment** | Both | Selects which display segment is shown (1-based in the UI). Disabled when there is only one. |
+| **Set overlay** | Both | Choose other display segments to draw in gray behind the current one, with the same filters and transformations. Disabled when there is only one. |
 
 ## Timeline settings
 
@@ -116,7 +118,7 @@ Click **Channels layout** next to **Move** on a group to open **Channels layout*
 | **XDAT** | Port, then channel name |
 | **DAQ** | Hardware channel number (`HwChannel`) |
 | **Neuralynx NCS** | `AcqEntName` (synthetic Events channel last, if present) |
-| **EDF / ABF / Open Ephys** | Natural sort of channel names from the header |
+| **EDF / ABF / Open Ephys** | Natural sort of channel names |
 
 If a format lacks a richer key, Ephyr falls back to the acquisition order stored in the converted experiment
 

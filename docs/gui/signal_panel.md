@@ -4,8 +4,9 @@ The data panel serves as the main workspace for viewing and labeling recordings 
 
 ## How data is shown
 
-Signal samples are loaded from the Ephyr experiment folder (`data/sweep_*/*.samples`) together with
-`header.json`. Traces are arranged into **channel groups** defined in the current session’s GUI setup.
+Signal samples are loaded from `sources/<source_id>/channel_N.samples` of the open Record. Traces are
+arranged into **channel groups** defined in the current session’s GUI setup. In **Continuous** mode a
+dotted line marks where the recording was interrupted between physical segments.
 
 Each group can show a classic single-column stack of channels or a custom electrode grid (see
 [Channel Management](settings_panel.md#channel-management)). Per-channel scale, color, Y offset, and
