@@ -12,38 +12,7 @@ Each group can show a classic single-column stack of channels or a custom electr
 optional clipping apply when drawing. Channel name labels on each cell can be hidden with
 **View → Channel names**. Global waveform visibility is **View → Channel Traces**.
 
-<<<<<<< HEAD
 ## Data panel navigation
-=======
-## Events and periods
-
-On top of the traces you can place:
-
-- **Events** — vertical markers at a specific time in a sweep, colored by vocabulary entry. Events can be
-  flagged as bad. Use **Events → Manage** for vocabulary and to add events; **Remove in Range**, **Mark as Invalid**,
-  and **Remove Invalid Mark** start the corresponding interactive modes.
-- **Periods** — labeled intervals (optionally spanning sweeps). Use **Periods → Manage** for vocabulary
-  and to add intervals with two clicks.
-
-Global visibility of traces, channel names, events, and periods is controlled from **View**. Individual event
-and period types can also be hidden in their vocabulary dialogs. Markers remain visible over disabled channel
-cells. These settings are stored in the session.
-
-## Add-on overlays
-
-Viewable add-ons draw additional graphics on the same panel after the base traces (and according to their
-z-order relative to periods and events). A common example is **csd** (current source density) add-on. 
-Another example is highlighted **spikes** from the Spike viewer
-add-on: detection results stored under `add_ons/data/` are rendered as markers on the relevant channels.
-
-![Signal panel with add-on overlays](../source/_static/gui/signal_panel_addons.png)
-
-Transformation add-ons do not draw; they change the numeric samples that feed the display pipeline before
-filters and plotting. Runnable add-ons are started from the Add-ons settings section and may update
-session labels or files that Viewable tools then display.
-
-## Navigation under the plot
->>>>>>> upstream/master
 
 Below the traces:
 
@@ -67,7 +36,7 @@ which you can use to move the visible window of electrodes within that group.
 The following items can be placed on top of the traces:
 
 - **Events** — vertical markers at a specific time in a sweep, colored by vocabulary entry. Events can be flagged as bad. 
-Use the Events menu for vocabulary management and for interactive add, remove, and bad-flag modes. 
+Use the Events menu for vocabulary management and for interactive add, remove, and mark as invalid modes. 
 - **Periods** — labeled intervals that may span sweeps. Use the Periods menu to manage vocabulary and to add intervals with two clicks. 
 
 Global visibility of channel traces, channel names, events, and periods is controlled from **View**. 

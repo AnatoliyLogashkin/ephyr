@@ -80,13 +80,8 @@ so `sweep_0` is displayed as sweep 1.
 - Inside each sweep directory, there is one `*.samples` file per channel, such as `channel_0.samples` 
 and `channel_1.samples`. These files are indexed by channel index using the same 0-based numbering.
 
-<<<<<<< HEAD
-Scripts and the GUI read these arrays through `ExperimentData.data_memmaps` and convert them to voltage 
-with `from_int16_to_voltage_val` (see [Using Labeled Data](analysis/labeled_data.md)).
-=======
 Scripts and the GUI read these arrays through `ExperimentData.data_memmaps` and convert them to physical
 values in the channel's header unit with `from_int16_to_physical` (see [Using Labeled Data](analysis/labeled_data.md)).
->>>>>>> upstream/master
 
 ### `sessions/`
 
