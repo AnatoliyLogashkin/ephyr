@@ -8,8 +8,8 @@ When a Record session is open, the Ephyr window is organized as follows.
 
 | Region | Role |
 |--------|------|
-| **Menu** | Global actions include opening experiments, managing sessions, toggling visibility, labeling events and periods, managing add-ons, and opening Help. See [Menu](menu.md). |
-| **Toolbar panel** | **Scalebar** turns the time/amplitude bar on or off. **Zoom to area** starts area selection (same as V). **Export Canvas** exports the current signal view (PNG/SVG). 
+| **Menu** | Global actions include opening workspaces, import recording, managing sessions, toggling visibility, labeling events and periods, managing add-ons, and opening Help. See [Menu](menu.md). |
+| **Toolbar panel** | **Scalebar** turns the time/amplitude bar on or off. **Zoom to area** starts area selection (same as **V**). **Export Canvas** exports the current signal view (PNG/SVG). 
 **Hide session panel** / **Show session panel** shows or hides the right-hand Session panel. |
 | **Data panel** (left) | Contains channel groups with traces, events, periods, optional add-on overlays, and time navigation. See [Data Panel](signal_panel.md). |
 | **Session panel** (right) | Includes Session panel mode selection (Beginner / Expert), timeline and channel settings, recording description, add-ons list, and application logs. See [Session Panel](settings_panel.md). |

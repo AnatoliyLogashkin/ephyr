@@ -13,15 +13,15 @@ Expert mode reveals additional Timeline settings and Channel Management controls
 
 ## Recording navigation
 
-An independent right-panel section enabled with **View → Session Panel → Recording Navigation**.
+An independent right-panel section, enabled via **View → Session Panel → Recording Navigation**.
 
 | Control | Mode | Purpose |
 |---------|------|---------|
-| **Config / Record / Source** | Both | Combo boxes plus **+** / **−** / **✎** to add, remove (with confirmation) and rename. Switching Source reloads the traces. |
-| **Navigation** | Both | **Continuous** (one concatenated view with gap markers), **By segment** (each physical segment, plus overlay), or **By period label** (a window around each period of a chosen label, with Before / After). |
+| **Config / Record / Source** | Both | Combo boxes with **+** / **−** / **✎** buttons to add, remove (with confirmation), and rename. Switching the Source reloads the traces. |
+| **Navigation** | Both | **Continuous** (a single concatenated view with gap markers), **By segment** (each physical segment, plus overlay), or **By period label** (a window around each period of a selected label, with Before / After). |
 | Segment info | Both | Sample rate, channel count, number of segments, and the start and duration of the current display segment. |
-| **Current segment** | Both | Selects which display segment is shown (1-based in the UI). Disabled when there is only one. |
-| **Set overlay** | Both | Choose other display segments to draw in gray behind the current one, with the same filters and transformations. Disabled when there is only one. |
+| **Current segment** | Both | Selects which display segment is shown (1-based in the UI). Disabled when only one segment is available. |
+| **Set overlay** | Both | Selects additional display segments to be drawn in gray behind the current segment, using the same filters and transformations. Disabled when only one segment is available. |
 
 ## Timeline settings
 

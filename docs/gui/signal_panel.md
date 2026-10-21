@@ -8,10 +8,10 @@ Signal samples are loaded from `sources/<source_id>/channel_N.samples` of the op
 arranged into **channel groups** defined in the current session’s GUI setup. In **Continuous** mode a
 dotted line marks where the recording was interrupted between physical segments.
 
-Each group can show a classic single-column stack of channels or a custom electrode grid (see
+Each group can display either a classic single-column stack of channels or a custom electrode grid (see
 [Channel Management](settings_panel.md#channel-management)). Per-channel scale, color, Y offset, and
-optional clipping apply when drawing. Channel name labels on each cell can be hidden with
-**View → Channel names**. Global waveform visibility is **View → Channel Traces**.
+optional clipping apply when drawing. Channel name labels on each cell can be hidden via
+**View → Channel names**. Global waveform visibility is controlled by **View → Channel Traces**.
 
 ## Data panel navigation
 
